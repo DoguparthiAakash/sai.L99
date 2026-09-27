@@ -82,9 +82,10 @@ void mp_hal_stdout_tx_str(const char *str)
     sai_mp_out(NULL, str, strlen(str));
 }
 
-void mp_hal_stdout_tx_strn(const char *str, size_t len)
+mp_uint_t mp_hal_stdout_tx_strn(const char *str, size_t len)
 {
     sai_mp_out(NULL, str, len);
+    return (mp_uint_t)len;
 }
 
 void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len)

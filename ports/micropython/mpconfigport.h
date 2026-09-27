@@ -106,6 +106,27 @@ typedef int32_t mp_off_t;
 #endif
 #define MP_SSIZE_MAX (0x7fffffff)
 
+/* POSIX ssize_t: used internally by the py core (emitbc.c jump offsets,
+ * objdeque.c, parse.c).  On POSIX hosts <sys/types.h> provides it; on MSVC
+ * the SDK's BaseTsd.h typedefs it as SSIZE_T (long long on x64) -- but we
+ * cannot rely on include order, so define it here when not already present.
+ * C allows identical typedef redefinition, so this is safe next to the CRT. */
+#ifndef _SSIZE_T_DEFINED
+#define _SSIZE_T_DEFINED
+#ifdef SAI_HOST_BUILD
+#ifdef _MSC_VER
+typedef long long ssize_t;
+#else
+#include <sys/types.h>
+#endif
+#else
+typedef int32_t ssize_t;
+#endif
+#endif
+#ifndef SSIZE_MAX
+#define SSIZE_MAX ((ssize_t)0x7fffffff)
+#endif
+
 /* We need at least a printf-compatible vprintf for mp_plat_print on the
  * host; the port routes everything through sai's own printer anyway. */
 #define MICROPY_DEBUG_PRINTERS               (0)
@@ -122,6 +143,7 @@ typedef int32_t mp_off_t;
 #endif
 
 /* --- misc --------------------------------------------------------------- */
+#define MICROPY_PY_SYS_PLATFORM              "sai.L99"
 #define MICROPY_ALLOC_PATH_MAX               (128)
 #define MICROPY_QSTR_BYTES_IN_LEN            (1)
 #define MICROPY_ALLOC_GC_STACK_SIZE          (64)
