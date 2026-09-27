@@ -26,6 +26,8 @@ CONFIG = {
     "MICROPY_VFS_ROM": "0",
     "MICROPY_VFS_ROM_IOCTL": "0",
     "MICROPY_ENABLE_PYSTACK": "0",
+    "MICROPY_QSTR_BYTES_IN_LEN": "1",
+    "MICROPY_QSTR_BYTES_IN_HASH": "2",
 }
 
 
@@ -94,6 +96,14 @@ def main():
                     continue
                 active = all(branch for _, branch, _ in stack) if stack else True
                 if not active:
+                    continue
+                if t.startswith("QCFG(") and t.endswith(")"):
+                    # QCFG(key, MACRO) -> resolve MACRO via CONFIG
+                    inner = t[5:-1]
+                    if "," in inner:
+                        key, val = inner.split(",", 1)
+                        key, val = key.strip(), val.strip()
+                        out_lines.append("QCFG(%s, %s)" % (key, CONFIG.get(val, val)))
                     continue
                 if t.startswith("Q(") and t.endswith(")"):
                     out_lines.append(t)

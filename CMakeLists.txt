@@ -86,10 +86,12 @@ else()
 endif()
 
 # Generated include dir (config) first so libc shims win over system headers.
+# NOTE: libc shims are added per-target (see sai target below); a global
+# include_directories(libc/include) would shadow the MSVC CRT headers for
+# the MicroPython target too (malloc/calloc redefinition C2375).
 include_directories(
     ${CMAKE_BINARY_DIR}/generated
     ${SAI_ROOT}/include
-    ${SAI_ROOT}/libc/include
     ${SAI_ROOT}/kernel
 )
 
@@ -179,8 +181,12 @@ endif()
 target_include_directories(sai PUBLIC
     ${SAI_ROOT}/include
     ${CMAKE_BINARY_DIR}/generated
-    ${SAI_ROOT}/libc/include
 )
+if(NOT MSVC)
+    # Freestanding/non-MSVC hosts link the sai libc shims; MSVC consumers use
+    # the CRT (a PUBLIC libc/include would shadow the CRT for every target).
+    target_include_directories(sai PUBLIC ${SAI_ROOT}/libc/include)
+endif()
 
 # ---------------------------------------------------------------------
 # Networking stub

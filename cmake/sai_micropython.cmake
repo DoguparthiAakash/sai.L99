@@ -41,9 +41,13 @@ function(sai_mp_cpp_args out)
         -I${MP_GENHDR_DIR}
         -I${CMAKE_BINARY_DIR}/generated
         -I${SAI_ROOT}/include
-        -I${SAI_ROOT}/libc/include
         -DNO_QSTR
     )
+    if(NOT MSVC)
+        # On the freestanding target the sai libc shims (stdlib/string) must
+        # win; on MSVC the CRT's stdlib.h is required (allocator attributes).
+        list(APPEND r -I${SAI_ROOT}/libc/include)
+    endif()
     if(MSVC)
         # POSIX-name shim headers (unistd.h etc.) from the MicroPython
         # windows port; clang must NOT see these.
@@ -242,8 +246,12 @@ endif()
 target_include_directories(sai_micropython PRIVATE
     ${CMAKE_BINARY_DIR}/generated
     ${SAI_ROOT}/include
-    ${SAI_ROOT}/libc/include
 )
+if(NOT MSVC)
+    # Non-MSVC hosts use the sai libc shims; MSVC uses the CRT (same split
+    # as the sai core build -- see the root CMakeLists).
+    target_include_directories(sai_micropython PRIVATE ${SAI_ROOT}/libc/include)
+endif()
 target_compile_definitions(sai_micropython PRIVATE _SAI_BUILDING)
 
 if(SAI_HOST_BUILD)

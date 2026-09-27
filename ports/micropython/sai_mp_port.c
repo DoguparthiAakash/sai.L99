@@ -31,12 +31,13 @@
 /* ------------------------------------------------------------------ */
 #ifdef SAI_HOST_BUILD
 #define MP_HEAP_SIZE (1u * 1024u * 1024u)
-static uint8_t mp_heap[MP_HEAP_SIZE] __attribute__((aligned(8)));
 #else
 /* 48 KB fits the F407's 128 KB SRAM next to the (reduced) kernel heap. */
 #define MP_HEAP_SIZE (48u * 1024u)
-static uint8_t mp_heap[MP_HEAP_SIZE] __attribute__((aligned(8)));
 #endif
+/* uint64_t array => 8-aligned on every toolchain (MSVC has no __attribute__). */
+static uint64_t mp_heap_store[(MP_HEAP_SIZE + 7u) / 8u];
+#define mp_heap ((uint8_t *)mp_heap_store)
 
 void sai_mp_init(void)
 {

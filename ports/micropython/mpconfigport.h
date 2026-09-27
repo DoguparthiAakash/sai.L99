@@ -9,11 +9,22 @@
 #ifndef SAI_MPCONFIGPORT_H
 #define SAI_MPCONFIGPORT_H
 
+#include <stdint.h>
+
 #ifdef _MSC_VER
 /* MSVC has no __BYTE_ORDER__ and no <endian.h>; both host x86-64 and the
  * ARM target are little-endian.  Defining this keeps mpconfig.h from
  * including <endian.h>. */
 #define MP_ENDIANNESS_LITTLE (1)
+
+/* GCC-attribute defaults from py/mpconfig.h don't compile under MSVC
+ * (same overrides the upstream windows port uses). */
+#define NORETURN                    __declspec(noreturn)
+#define MP_WEAK
+#define MP_NOINLINE                 __declspec(noinline)
+#define MP_ALWAYSINLINE             __forceinline
+#define MP_LIKELY(x)                (x)
+#define MP_UNLIKELY(x)              (x)
 #endif
 
 /* Feature level: "core features" gives the full compiler + core builtins;
@@ -87,6 +98,7 @@
 /* --- type definitions --------------------------------------------------- */
 typedef int32_t mp_int_t;      /* must be pointer size */
 typedef uint32_t mp_uint_t;    /* must be pointer size */
+typedef uint64_t mp_uint64_t;  /* used by mp_hal_time_ns()             */
 #ifdef SAI_HOST_BUILD
 typedef long long mp_off_t;
 #else
