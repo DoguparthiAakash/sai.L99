@@ -165,3 +165,4 @@ Kconfig `choice ARCH` entry. RISC-V (RV32IMAC) and Xtensa ports slot in without 
 3. Optionally `boards/<new-board>/sai_board.conf` — feature defaults for this board.
 4. Add the board to the root `CMakeLists.txt` (`set(SAI_VALID_BOARDS ...)`) and the Kconfig
    `choice BOARD` entry.
+# This Project is made with the help of ai under MIT Licensing.
