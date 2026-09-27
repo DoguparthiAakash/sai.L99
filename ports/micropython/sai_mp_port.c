@@ -56,8 +56,9 @@ void sai_mp_deinit(void)
 enum { MP_OUT_CHUNK = 2048 };
 
 /* The print object the py core declares as `extern const mp_print_t
- * mp_plat_print`; route it to the console. */
-static void mp_print_strn(void *data, const char *str, size_t len)
+ * mp_plat_print`; route it to the console.  (Name must not collide with
+ * MP's real mp_print_strn API.) */
+static void sai_mp_out(void *data, const char *str, size_t len)
 {
     (void)data;
     while (len > 0) {
@@ -73,17 +74,17 @@ static void mp_print_strn(void *data, const char *str, size_t len)
 
 const mp_print_t mp_plat_print = {
     .data = NULL,
-    .print_strn = mp_print_strn,
+    .print_strn = sai_mp_out,
 };
 
 void mp_hal_stdout_tx_str(const char *str)
 {
-    mp_print_strn(NULL, str, strlen(str));
+    sai_mp_out(NULL, str, strlen(str));
 }
 
 void mp_hal_stdout_tx_strn(const char *str, size_t len)
 {
-    mp_print_strn(NULL, str, len);
+    sai_mp_out(NULL, str, len);
 }
 
 void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len)
