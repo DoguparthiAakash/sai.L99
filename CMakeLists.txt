@@ -190,6 +190,12 @@ if(SAI_NET OR CONFIG_SAI_NET)
 endif()
 
 # ---------------------------------------------------------------------
+# MicroPython (vendored) -- built for host and target alike
+# ---------------------------------------------------------------------
+include(cmake/sai_micropython.cmake)
+target_link_libraries(sai PUBLIC sai_micropython)
+
+# ---------------------------------------------------------------------
 # Host: tests + samples
 # ---------------------------------------------------------------------
 if(SAI_HOST_BUILD)

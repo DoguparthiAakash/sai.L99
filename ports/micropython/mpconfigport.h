@@ -9,6 +9,13 @@
 #ifndef SAI_MPCONFIGPORT_H
 #define SAI_MPCONFIGPORT_H
 
+#ifdef _MSC_VER
+/* MSVC has no __BYTE_ORDER__ and no <endian.h>; both host x86-64 and the
+ * ARM target are little-endian.  Defining this keeps mpconfig.h from
+ * including <endian.h>. */
+#define MP_ENDIANNESS_LITTLE (1)
+#endif
+
 /* Feature level: "core features" gives the full compiler + core builtins;
  * we then disable filesystem/stream-heavy machinery (an RTOS without a VFS). */
 #define MICROPY_CONFIG_ROM_LEVEL (MICROPY_CONFIG_ROM_LEVEL_CORE_FEATURES)
@@ -60,12 +67,14 @@
 /* --- non-blocking streams: none (no streams at all) -------------------- */
 #define MICROPY_STREAMS_NON_BLOCK            (0)
 
-/* --- float support ------------------------------------------------------ */
+/* --- numeric support ----------------------------------------------------- */
 #ifdef SAI_HOST_BUILD
 #define MICROPY_FLOAT_IMPL                   (MICROPY_FLOAT_IMPL_FLOAT)
+#define MICROPY_LONGINT_IMPL                 (MICROPY_LONGINT_IMPL_LONGLONG)
 #else
-/* Cortex-M4 (soft ABI in our build): integer math only keeps the image small */
+/* Cortex-M4 (soft ABI): keep the image small -- machine ints only */
 #define MICROPY_FLOAT_IMPL                   (MICROPY_FLOAT_IMPL_NONE)
+#define MICROPY_LONGINT_IMPL                 (MICROPY_LONGINT_IMPL_NONE)
 #endif
 
 /* --- nlr: native on target, setjmp on the host -------------------------- */
