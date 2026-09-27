@@ -1,0 +1,73 @@
+# cmake/sai_defaults.txt
+# sai.L99 default configuration values (Kconfig-style).
+# User overrides go in sai.conf at the repo root or board sai_board.conf.
+
+config CONFIG_SAI_TICK_MS
+    default 1
+
+config CONFIG_SAI_TIMESLICE
+    default 10
+
+config CONFIG_SAI_MAIN_STACK_SIZE
+    default 2048
+
+config CONFIG_SAI_IDLE_STACK_SIZE
+    default 512
+
+config CONFIG_SAI_HEAP_SIZE
+    default 32768
+
+config CONFIG_SAI_CPU_CLOCK_HZ
+    default 16000000
+
+config CONFIG_SAI_THREAD_STATS
+    default n
+
+config CONFIG_SAI_STACK_SENTINEL
+    default y
+
+config CONFIG_SAI_ASSERT
+    default y
+
+config CONFIG_SAI_DEBUG
+    default n
+
+config CONFIG_SAI_LOG
+    default y
+
+config CONFIG_SAI_LOG_LEVEL
+    default 3
+
+config CONFIG_SAI_LOG_LINE_MAX
+    default 128
+
+config CONFIG_SAI_CONSOLE_LINE_MAX
+    default 192
+
+config CONFIG_SAI_TICKLESS
+    default n
+
+config CONFIG_SAI_DYNAMIC_IPC
+    default y
+
+config CONFIG_SAI_STATIC_KERNEL
+    default n
+    depends on !CONFIG_SAI_DYNAMIC_IPC
+
+config CONFIG_SAI_MPU_THREAD_STACKS
+    default n
+
+config CONFIG_SAI_ARM_USE_BASEPRI
+    default y
+
+config CONFIG_SAI_BASEPRI_THRESHOLD
+    default 0x10
+
+config CONFIG_SAI_DRIVERS
+    default y
+
+config CONFIG_SAI_NET
+    default n
+
+config CONFIG_SAI_TESTS
+    default n

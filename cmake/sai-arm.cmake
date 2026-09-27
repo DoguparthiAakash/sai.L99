@@ -1,0 +1,43 @@
+# cmake/sai-arm.cmake
+#
+# Assemble per-CPU flags for ARM Cortex-M targets. Included from the root
+# CMakeLists when SAI_ARCH STREQUAL "arm".
+
+function(sai_arm_cpu_flags cpu out_flags out_defs)
+    set(flags "")
+    set(defs "")
+
+    if(cpu STREQUAL "cortex-m0")
+        list(APPEND flags "-mcpu=cortex-m0")
+        list(APPEND defs "SAI_ARM_V6M=1" "SAI_ARM_USE_BASEPRI=0")
+    elseif(cpu STREQUAL "cortex-m0plus")
+        list(APPEND flags "-mcpu=cortex-m0plus")
+        list(APPEND defs "SAI_ARM_V6M=1" "SAI_ARM_USE_BASEPRI=0")
+    elseif(cpu STREQUAL "cortex-m3")
+        list(APPEND flags "-mcpu=cortex-m3")
+        list(APPEND defs "SAI_ARM_V7M=1" "SAI_ARM_USE_BASEPRI=1")
+    elseif(cpu STREQUAL "cortex-m4")
+        list(APPEND flags "-mcpu=cortex-m4")
+        list(APPEND defs "SAI_ARM_V7M=1" "SAI_ARM_USE_BASEPRI=1")
+    elseif(cpu STREQUAL "cortex-m4f")
+        list(APPEND flags "-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard")
+        list(APPEND defs "SAI_ARM_V7M=1" "SAI_ARM_USE_BASEPRI=1" "SAI_ARM_FPU=1")
+    elseif(cpu STREQUAL "cortex-m7")
+        list(APPEND flags "-mcpu=cortex-m7")
+        list(APPEND defs "SAI_ARM_V7M=1" "SAI_ARM_USE_BASEPRI=1")
+    elseif(cpu STREQUAL "cortex-m7f")
+        list(APPEND flags "-mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard")
+        list(APPEND defs "SAI_ARM_V7M=1" "SAI_ARM_USE_BASEPRI=1" "SAI_ARM_FPU=1")
+    elseif(cpu STREQUAL "cortex-m23")
+        list(APPEND flags "-mcpu=cortex-m23")
+        list(APPEND defs "SAI_ARM_V8MBL=1" "SAI_ARM_USE_BASEPRI=0")
+    elseif(cpu STREQUAL "cortex-m33")
+        list(APPEND flags "-mcpu=cortex-m33")
+        list(APPEND defs "SAI_ARM_V8MML=1" "SAI_ARM_USE_BASEPRI=1")
+    else()
+        message(FATAL_ERROR "Unsupported SAI_CPU '${cpu}'")
+    endif()
+
+    set(${out_flags} "${flags}" PARENT_SCOPE)
+    set(${out_defs} "${defs}" PARENT_SCOPE)
+endfunction()
