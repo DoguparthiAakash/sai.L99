@@ -93,7 +93,33 @@ The `sai` Python module (`ports/micropython/modsai.c`) exposes
   `run <lang> <src>` executes a payload; `mp <code>` is MicroPython
   shorthand; `exec <name>` runs a registered native snippet.
 
-## Second-wave devices (`sai/devices2.h`)
+## Third-wave devices (ADC / DMA / signal / sink)
+
+* **ADC** (`sai/device.h` class + `sai_adc_create`) — per-channel periodic
+  sampling with 1..16-sample moving average, blocking `sai_adc_read` and
+  async `sai_adc_read_async` (completion in tick context). The simulator's
+  input level is programmable (`sai_adc_sim_set_level`) for deterministic
+  tests; a real SoC replaces the ops table only.
+* **DMA** (`sai_dma_create`) — channelized engine with burst pacing
+  (`sai_dma_configure`), completion callback from tick context, busy
+  detection and abort (`sai_dma_stop`). Transfers take deterministic,
+  measurable time — like real DMA.
+* **Signal** (`sai_signal_create`) — named event fan-out point: producers
+  raise from any context, subscribers get callbacks or event-flag waits.
+* **Sink** (`sai_sink_create`) — capturing write endpoint (static ring +
+  optional mirror callback) for console routing and loopback-style tests.
+
+## Scheduler / timing optimizations
+
+* Priority pick uses a hardware bit-scan (CLZ/BSF: `__builtin_ctz` or
+  `_BitScanForward`) over the ready bitmap — constant time.
+* Idle-entry fast path in the pick: when nothing is ready and idle already
+  runs, the pick returns without touching rings.
+* Tick fast path: when no deadline is near, no timer is active and idle is
+  running, the tick only advances the counter (works with tickless idle to
+  skip entire wakeups on target).
+* Budget accounting is anchored at dispatch, so switch latency is billed to
+  neither thread (precision of the latency-budget enforcer).
 
 * **PWM** (`sai_pwm_create/configure/enable/disable`) — kernel-timer software
   engine, 2 instances x 4 channels.

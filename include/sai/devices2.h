@@ -23,6 +23,8 @@ extern "C" {
 #define SAI_DEVICE_TYPE_BUTTON  ((sai_device_type_t)101)
 #define SAI_DEVICE_TYPE_LOOPBK  ((sai_device_type_t)102)
 #define SAI_DEVICE_TYPE_MEM     ((sai_device_type_t)103)
+#define SAI_DEVICE_TYPE_SIGNAL  ((sai_device_type_t)104)
+#define SAI_DEVICE_TYPE_SINK    ((sai_device_type_t)105)
 
 /* ------------------------------------------------------------------ */
 /* PWM class                                                           */
@@ -151,6 +153,47 @@ static inline int sai_mem_write(sai_device_t *d, uint32_t off, const uint8_t *b,
 /** Create a memory device backed by a caller-owned buffer. */
 sai_status_t sai_memdev_create(const char *name, void *storage, uint32_t size,
                                sai_device_t **out);
+
+/* ------------------------------------------------------------------ */
+/* Signal device (virtual event fan-out point)                         */
+/* ------------------------------------------------------------------ */
+
+typedef void (*sai_signal_cb_t)(sai_device_t *dev, uint32_t flags, void *arg);
+
+sai_status_t sai_signal_create(const char *name, sai_device_t **out);
+sai_status_t sai_signal_raise(sai_device_t *d, uint32_t flags);
+sai_status_t sai_signal_subscribe(sai_device_t *d, sai_signal_cb_t cb, void *arg);
+sai_status_t sai_signal_wait(sai_device_t *d, uint32_t flags, uint32_t opts,
+                             uint32_t *set_flags, int32_t timeout_ms);
+
+/* ------------------------------------------------------------------ */
+/* Byte-sink device (capturing write endpoint)                         */
+/* ------------------------------------------------------------------ */
+
+typedef void (*sai_sink_cb_t)(sai_device_t *dev, const uint8_t *buf,
+                              uint32_t len, void *arg);
+
+sai_status_t sai_sink_create(const char *name, sai_device_t **out);
+int32_t      sai_sink_read(sai_device_t *d, uint8_t *buf, uint32_t len);
+sai_status_t sai_sink_mirror(sai_device_t *d, sai_sink_cb_t cb);
+uint32_t     sai_sink_written(sai_device_t *d);
+
+/* ------------------------------------------------------------------ */
+/* ADC / DMA instance factories (class APIs live in sai/device.h)      */
+/* ------------------------------------------------------------------ */
+
+/** Create a simulated-frontend ADC ("adc0", "adc1"). */
+sai_status_t sai_adc_create(const char *name, sai_device_t **out);
+
+/** Tests/board glue: set the simulated input level (0..4095) of a channel. */
+sai_status_t sai_adc_sim_set_level(sai_device_t *d, uint32_t channel,
+                                   uint16_t level);
+
+/** Create the DMA engine ("dma0"). */
+sai_status_t sai_dma_create(const char *name, sai_device_t **out);
+
+/** Bytes moved so far on a channel (diagnostics). */
+bool sai_dma_progress(sai_device_t *d, uint32_t channel, uint32_t *done);
 
 #ifdef __cplusplus
 }

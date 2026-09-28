@@ -36,6 +36,19 @@ void sai_busy_sleep_us(uint32_t us)
 /* ------------------------------------------------------------------ */
 void _sai_tick_handler(void)
 {
+    uint32_t next_deadline = _sai_next_deadline_ticks();
+    if (next_deadline != 0u &&
+        (int32_t)(next_deadline - _sai_tick_count) > 1) {
+        /* Fast path: no deadline within one tick and no active timers
+         * (checked below) — just advance the count.  The tickless idle
+         * programming layer skips most of these ticks entirely on target. */
+        if (_sai_timers_next_deadline() == 0u &&
+            _sai_current != NULL && _sai_current->prio == SAI_IDLE_PRIORITY) {
+            _sai_tick_count++;
+            return;
+        }
+    }
+
     _sai_tick_count++;
 
     _sai_deadlines_tick();     /* wake sleepers / timed waiters */

@@ -29,6 +29,9 @@
 #include "internal.h"
 #include <sai/budget.h>
 #include <sai/trace.h>
+#if defined(_MSC_VER)
+#include <intrin.h>                    /* _BitScanForward */
+#endif
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -112,6 +115,10 @@ sai_thread_t *_sai_ready_head(void)
     }
 #if defined(__GNUC__)
     uint8_t p = (uint8_t)__builtin_ctz(bm);        /* lowest set bit = highest prio */
+#elif defined(_MSC_VER)
+    unsigned long idx;
+    _BitScanForward(&idx, bm);                     /* bm != 0 here */
+    uint8_t p = (uint8_t)idx;
 #else
     uint8_t p = 0;
     while (((bm >> p) & 1u) == 0u) {
@@ -250,14 +257,24 @@ sai_thread_t *_sai_schedule_pick(void)
     }
 
     if (best == NULL) {
-        /* Nothing ready and the runner is gone: run the idle thread (kept
-         * out of the ready rings). */
+        /* Nothing ready: run the idle thread (kept out of the ready rings).
+         * Fast path: the idle thread keeps the CPU without re-picking. */
         if (cur == &_sai_idle_thread) {
             return cur;
         }
+#if CONFIG_SAI_BUDGET
+        if (cur != NULL) {
+            _sai_budget_on_switch_out(cur);   /* idle entry ends the run */
+        }
+#endif
         _sai_idle_thread.state = SAI_THREAD_RUNNING;
         _sai_current = &_sai_idle_thread;
         _sai_ctx_switches++;
+#if CONFIG_SAI_TRACE
+        _sai_trace_event((uint8_t)SAI_TRACE_SWITCH,
+                         (uint32_t)(uintptr_t)&_sai_idle_thread,
+                         (uint32_t)(uintptr_t)cur, 0u);
+#endif
         return _sai_current;
     }
 
@@ -274,6 +291,8 @@ sai_thread_t *_sai_schedule_pick(void)
     if (from != NULL) {
         _sai_budget_on_switch_out(from);
     }
+    /* Anchor the run-start at the dispatch tick: switch latency between
+     * decision and first tick must not be billed to either thread. */
     best->budget_run_start = sai_tick_count();
 #endif
 #if CONFIG_SAI_TRACE

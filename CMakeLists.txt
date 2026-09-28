@@ -142,8 +142,12 @@ set(SAI_DRIVER_SOURCES
     drivers/timer/timer_dev.c
     drivers/pwm/pwm.c
     drivers/button/button.c
+    drivers/adc/adc.c
+    drivers/dma/dma.c
     drivers/virtual/loopback.c
     drivers/virtual/memdev.c
+    drivers/virtual/signal.c
+    drivers/virtual/sink.c
 )
 
 add_library(sai STATIC

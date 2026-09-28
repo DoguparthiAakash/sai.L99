@@ -27,9 +27,19 @@ typedef enum {
     SAI_DEVICE_I2C,
     SAI_DEVICE_TIMER,
     SAI_DEVICE_COUNTER,
+    SAI_DEVICE_ADC,
+    SAI_DEVICE_DMA,
 } sai_device_type_t;
 
 struct sai_device;
+
+/** ADC async completion: @p value is the averaged sample (ISR context). */
+typedef void (*sai_adc_cb_t)(struct sai_device *dev, uint32_t channel,
+                             uint16_t value, void *arg);
+
+/** DMA transfer completion (ISR context): @p len bytes were moved. */
+typedef void (*sai_dma_cb_t)(struct sai_device *dev, uint32_t channel,
+                             uint32_t len, int status, void *arg);
 
 /** Per-class operations; drivers provide one of these. */
 typedef union sai_dev_ops {
@@ -60,6 +70,24 @@ typedef union sai_dev_ops {
         int (*stop)(struct sai_device *dev);
         int (*set_period)(struct sai_device *dev, uint32_t period_us);
     } timer;
+    struct {
+        int (*configure)(struct sai_device *dev, uint32_t channel,
+                         uint32_t sample_us, uint8_t samples);
+        int (*read)(struct sai_device *dev, uint32_t channel, uint16_t *out);
+        int (*read_async)(struct sai_device *dev, uint32_t channel,
+                          sai_adc_cb_t cb, void *arg);
+    } adc;
+    struct {
+        int (*configure)(struct sai_device *dev, uint32_t channel,
+                         uint32_t burst_size);
+        int (*start)(struct sai_device *dev, uint32_t channel,
+                     void *dst, const void *src, uint32_t len,
+                     sai_dma_cb_t cb, void *arg);
+        int (*stop)(struct sai_device *dev, uint32_t channel);
+    } dma;
+    struct {
+        int (*write)(struct sai_device *dev, const uint8_t *buf, uint32_t len);
+    } sink;
 } sai_dev_ops_t;
 
 /** A device node: created statically by the board (from the devicetree). */
@@ -152,6 +180,64 @@ static inline int sai_timer_stop_dev(sai_device_t *d)
 { return d && d->ops ? d->ops->timer.stop(d) : SAI_ERR_INVAL; }
 static inline int sai_timer_set_period(sai_device_t *d, uint32_t us)
 { return d && d->ops ? d->ops->timer.set_period(d, us) : SAI_ERR_INVAL; }
+
+/* ------------------------------------------------------------------ */
+/* ADC class API                                                       */
+/* ------------------------------------------------------------------ */
+
+/** Configure a channel: sample interval in us, 1..16 samples averaged. */
+static inline int sai_adc_configure(sai_device_t *d, uint32_t channel,
+                                    uint32_t sample_us, uint8_t samples)
+{
+    if (d == NULL || d->type != SAI_DEVICE_ADC) return SAI_ERR_INVAL;
+    return d->ops->adc.configure(d, channel, sample_us, samples);
+}
+
+/** Blocking single conversion (averaged). Returns 12-bit value via @p out. */
+static inline int sai_adc_read(sai_device_t *d, uint32_t channel, uint16_t *out)
+{
+    if (d == NULL || d->type != SAI_DEVICE_ADC) return SAI_ERR_INVAL;
+    return d->ops->adc.read(d, channel, out);
+}
+
+/** Non-blocking conversion; @p cb fires from tick context when ready. */
+static inline int sai_adc_read_async(sai_device_t *d, uint32_t channel,
+                                     sai_adc_cb_t cb, void *arg)
+{
+    if (d == NULL || d->type != SAI_DEVICE_ADC) return SAI_ERR_INVAL;
+    return d->ops->adc.read_async(d, channel, cb, arg);
+}
+
+/* ------------------------------------------------------------------ */
+/* DMA class API                                                       */
+/* ------------------------------------------------------------------ */
+
+/** Configure a channel's burst size (bytes per arbitration). */
+static inline int sai_dma_configure(sai_device_t *d, uint32_t channel,
+                                    uint32_t burst_size)
+{
+    if (d == NULL || d->type != SAI_DEVICE_DMA) return SAI_ERR_INVAL;
+    return d->ops->dma.configure(d, channel, burst_size);
+}
+
+/**
+ * Start a transfer. @p cb fires from tick context on completion (status
+ * SAI_OK) or error. Returns SAI_ERR_BUSY if the channel is active.
+ */
+static inline int sai_dma_start(sai_device_t *d, uint32_t channel,
+                                void *dst, const void *src, uint32_t len,
+                                sai_dma_cb_t cb, void *arg)
+{
+    if (d == NULL || d->type != SAI_DEVICE_DMA) return SAI_ERR_INVAL;
+    return d->ops->dma.start(d, channel, dst, src, len, cb, arg);
+}
+
+/** Abort an active channel transfer. */
+static inline int sai_dma_stop(sai_device_t *d, uint32_t channel)
+{
+    if (d == NULL || d->type != SAI_DEVICE_DMA) return SAI_ERR_INVAL;
+    return d->ops->dma.stop(d, channel);
+}
 
 #ifdef __cplusplus
 }
