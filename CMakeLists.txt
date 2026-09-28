@@ -134,6 +134,10 @@ set(SAI_DRIVER_SOURCES
     drivers/spi/spi.c
     drivers/i2c/i2c.c
     drivers/timer/timer_dev.c
+    drivers/pwm/pwm.c
+    drivers/button/button.c
+    drivers/virtual/loopback.c
+    drivers/virtual/memdev.c
 )
 
 add_library(sai STATIC
@@ -202,6 +206,12 @@ include(cmake/sai_micropython.cmake)
 target_link_libraries(sai PUBLIC sai_micropython)
 
 # ---------------------------------------------------------------------
+# Services: script/stats/events/softrpc + language runtimes + shell
+# (static lib on top of sai; consumers link sai_services explicitly)
+# ---------------------------------------------------------------------
+include(cmake/sai_services.cmake)
+
+# ---------------------------------------------------------------------
 # Host: tests + samples
 # ---------------------------------------------------------------------
 if(SAI_HOST_BUILD)
@@ -222,7 +232,7 @@ if(SAI_HOST_BUILD)
     foreach(test_src ${SAI_TEST_SOURCES})
         get_filename_component(test_name ${test_src} NAME_WE)
         add_executable(test_${test_name} ${test_src} tests/test_main.c)
-        target_link_libraries(test_${test_name} PRIVATE sai sai_test)
+        target_link_libraries(test_${test_name} PRIVATE sai sai_services sai_test)
         add_test(NAME ${test_name} COMMAND test_${test_name})
         set_tests_properties(${test_name} PROPERTIES
             ENVIRONMENT "SAI_TEST=1"
@@ -232,11 +242,13 @@ if(SAI_HOST_BUILD)
 
     # ---- samples ------------------------------------------------------
     add_executable(kernel_demo samples/kernel_demo/main.c)
-    target_link_libraries(kernel_demo PRIVATE sai)
+    target_link_libraries(kernel_demo PRIVATE sai sai_services)
     add_executable(blinky samples/blinky/main.c)
     target_link_libraries(blinky PRIVATE sai)
+    add_executable(lang_demo samples/lang_demo/main.c)
+    target_link_libraries(lang_demo PRIVATE sai sai_services)
 
-    set_target_properties(kernel_demo blinky PROPERTIES
+    set_target_properties(kernel_demo blinky lang_demo PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 else()

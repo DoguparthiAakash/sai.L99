@@ -213,7 +213,11 @@ add_custom_command(
 # Step 5: the library
 # ---------------------------------------------------------------------
 set(MP_CORE_SOURCES ${MP_PY_SOURCES})
+# nlr.c + the selected nlr implementation are part of the core; the glob
+# above excludes all nlr*.c so add back the ones we need.
 list(APPEND MP_CORE_SOURCES
+    ${MP_DIR}/py/nlr.c
+    ${MP_DIR}/py/nlrsetjmp.c
     ${MP_DIR}/extmod/virtpin.c
     ${MP_PORT_DIR}/sai_mp_port.c
     ${MP_PORT_DIR}/modsai.c

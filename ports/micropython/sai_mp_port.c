@@ -22,18 +22,23 @@
 #include "sai/time.h"
 #include "sai/console.h"
 #include "sai/ipc.h"
+#include "sai/services.h"
 
 #include "mpconfigport.h"
 #include "mphalport.h"
+#include "py/stackctrl.h"
+#include "py/gc.h"
 
 /* ------------------------------------------------------------------ */
 /* GC heap                                                             */
 /* ------------------------------------------------------------------ */
 #ifdef SAI_HOST_BUILD
 #define MP_HEAP_SIZE (1u * 1024u * 1024u)
+#define MP_THREAD_STACK (256u * 1024u)   /* host threads are large */
 #else
 /* 48 KB fits the F407's 128 KB SRAM next to the (reduced) kernel heap. */
 #define MP_HEAP_SIZE (48u * 1024u)
+#define MP_THREAD_STACK (8u * 1024u)
 #endif
 /* uint64_t array => 8-aligned on every toolchain (MSVC has no __attribute__). */
 static uint64_t mp_heap_store[(MP_HEAP_SIZE + 7u) / 8u];
@@ -43,6 +48,28 @@ void sai_mp_init(void)
 {
     gc_init(mp_heap, mp_heap + MP_HEAP_SIZE);
     mp_init();
+    mp_stack_set_top((void *)&mp_heap);   /* cstack limit set below */
+    mp_stack_set_limit(MP_THREAD_STACK);
+}
+
+/**
+ * GC collection pass: the sai thread stack is the MP root set.  We scan
+ * from the current stack top (conservative mark) plus the MP-registered
+ * root pointers.
+ */
+void gc_collect(void)
+{
+    gc_collect_start();
+    /* This thread's stack: from here to the MP stack top set in init.
+     * The dummy local anchors the current stack pointer conservatively. */
+    volatile int sp_dummy = 0;
+    void *sp = (void *)&sp_dummy;
+    void *top = MP_STATE_THREAD(stack_top);
+    if ((char *)top > (char *)sp) {
+        gc_collect_root((void **)sp,
+                        ((char *)top - (char *)sp) / (ptrdiff_t)sizeof(void *));
+    }
+    gc_collect_end();
 }
 
 void sai_mp_deinit(void)
@@ -54,13 +81,30 @@ void sai_mp_deinit(void)
 /* stdout: chunked through the sai console                             */
 /* ------------------------------------------------------------------ */
 enum { MP_OUT_CHUNK = 2048 };
+/* stdout backend for the py core: py/mpprint.c instantiates the public
+ * `mp_plat_print` object through MP_PLAT_PRINT_STRN -> mp_hal_stdout_tx_strn_cooked,
+ * which lands here.  The sai console takes NUL-terminated strings, so output
+ * is copied through a stack buffer in chunks (no heap traffic). */
+/* Output sink indirection: default is the sai console (chunked).  The
+ * script service installs a capture sink while a payload runs so output
+ * can be returned to the caller instead of the UART. */
 
-/* The print object the py core declares as `extern const mp_print_t
- * mp_plat_print`; route it to the console.  (Name must not collide with
- * MP's real mp_print_strn API.) */
+static sai_script_out_fn_t s_out_hook;
+static void *s_out_user;
+
+void sai_script_set_output_hook(sai_script_out_fn_t fn, void *user)
+{
+    s_out_hook = fn;
+    s_out_user = user;
+}
+
 static void sai_mp_out(void *data, const char *str, size_t len)
 {
     (void)data;
+    if (s_out_hook != NULL) {
+        s_out_hook(str, len, s_out_user);
+        return;
+    }
     while (len > 0) {
         size_t n = len > MP_OUT_CHUNK ? MP_OUT_CHUNK : len;
         char buf[MP_OUT_CHUNK];
@@ -71,11 +115,6 @@ static void sai_mp_out(void *data, const char *str, size_t len)
         len -= n;
     }
 }
-
-const mp_print_t mp_plat_print = {
-    .data = NULL,
-    .print_strn = sai_mp_out,
-};
 
 void mp_hal_stdout_tx_str(const char *str)
 {
@@ -150,7 +189,7 @@ void mp_hal_delay_ms(mp_uint_t ms)
 void mp_hal_delay_us(mp_uint_t us)
 {
     if (us < 1000u) {
-        sai_busy_wait_us(us);
+        sai_busy_sleep_us(us);
     } else {
         sai_sleep(us / 1000u);
     }
