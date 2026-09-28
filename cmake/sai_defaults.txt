@@ -66,6 +66,12 @@ config CONFIG_SAI_BASEPRI_THRESHOLD
 config CONFIG_SAI_DRIVERS
     default y
 
+config CONFIG_SAI_BUDGET
+    default y
+
+config CONFIG_SAI_TRACE
+    default y
+
 config CONFIG_SAI_NET
     default n
 

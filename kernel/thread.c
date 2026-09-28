@@ -91,6 +91,7 @@ sai_status_t sai_thread_create(sai_thread_t *t, const char *name,
     memset(t, 0, sizeof(*t));
     t->kobj.type = SAI_KOBJ_THREAD;
     t->kobj.name = name ? name : "thread";
+    _sai_kobj_register_full(&t->kobj, SAI_KOBJ_THREAD, t->kobj.name);
     t->entry      = entry;
     t->arg        = arg;
     t->prio       = prio;
@@ -379,6 +380,7 @@ void _sai_thread_cleanup_and_exit(void)
 
     _sai_ready_remove(t);
     t->state = SAI_THREAD_DEAD;
+    _sai_kobj_unregister_full(&t->kobj);
 
     /* Release any joiners, then queue the TCB for the idle reaper if it is
      * dynamic. Stacks of static threads are left alone. */
@@ -417,6 +419,7 @@ sai_status_t sai_thread_delete(sai_thread_t *t)
     }
     _sai_ready_remove(t);
     t->state = SAI_THREAD_DEAD;
+    _sai_kobj_unregister_full(&t->kobj);
     _sai_thread_notify_joiners(t);
     if (t->flags & SAI_THREAD_FLAG_DYNAMIC) {
         t->flags |= SAI_THREAD_FLAG_DYING;

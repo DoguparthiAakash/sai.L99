@@ -37,7 +37,9 @@ endif()
 
 if(SAI_LLVM_LD)
     set(CMAKE_LINKER       "${SAI_LLVM_LD}")
-    set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+    # Link through the clang *driver* (not ld.lld directly): -Wl, options,
+    # libc-free startup rules and target flags all get translated there.
+    set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_C_COMPILER> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 elseif(NOT SAI_CLANG)
     set(CMAKE_LINKER "arm-none-eabi-ld")
 endif()
@@ -58,4 +60,8 @@ set(CMAKE_C_FLAGS_INIT "--target=armv7em-none-eabi -mthumb -ffreestanding -nostd
 string(REPLACE "cortex-m4" "" _dummy "${SAI_CPU}")   # silence unused warnings
 set(CMAKE_C_FLAGS_INIT "${CMAKE_C_FLAGS_INIT} -mcpu=${SAI_CPU} ${SAI_MCPU_FLAGS}")
 
-set(CMAKE_EXE_LINKER_FLAGS_INIT "-nostdlib -Wl,--gc-sections")
+# GNU-style .S sources go through clang's integrated assembler; without an
+# explicit target it would assemble for the host.
+set(CMAKE_ASM_FLAGS_INIT "--target=armv7em-none-eabi -mthumb -mcpu=${SAI_CPU} ${SAI_MCPU_FLAGS}")
+
+set(CMAKE_EXE_LINKER_FLAGS_INIT "--target=armv7em-none-eabi -mthumb -nostdlib -Wl,--gc-sections")

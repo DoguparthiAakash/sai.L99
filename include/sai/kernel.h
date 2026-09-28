@@ -12,6 +12,9 @@
 
 #include <sai/types.h>
 #include <sai/config.h>
+#if CONFIG_SAI_BUDGET
+#include <sai/budget.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,7 +85,20 @@ typedef struct sai_thread {
 #endif
     /* Mutex ownership chain for priority inheritance (internal). */
     struct sai_mutex     *held_mutexes;
+
+#if CONFIG_SAI_BUDGET
+    /* Latency-budget enforcement (see sai/budget.h). Kept at the tail so
+     * existing TCB layouts (and arch offset asserts) are unaffected. */
+    sai_budget_t          budget;           /**< Enforcement state.       */
+    uint32_t              budget_run_start; /**< Clock at dispatch.       */
+    uint8_t               budget_flags;     /**< SAI_TCB_BUDGET bit.      */
+#endif
 } sai_thread_t;
+
+#if CONFIG_SAI_BUDGET
+/** t->budget_flags bit: budget struct is initialized. */
+#define SAI_TCB_BUDGET 0x01u
+#endif
 
 /** Thread creation flags. */
 #define SAI_THREAD_COOPERATIVE   0x0001u  /**< Yield-only scheduling.        */

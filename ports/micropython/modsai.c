@@ -15,6 +15,8 @@
 #include "sai/device.h"
 #include "sai/version.h"
 
+#include <string.h>
+
 #include "mphalport.h"
 
 /* ------------------------------------------------------------------ */

@@ -48,6 +48,11 @@ function(sai_mp_cpp_args out)
         # win; on MSVC the CRT's stdlib.h is required (allocator attributes).
         list(APPEND r -I${SAI_ROOT}/libc/include)
     endif()
+if(NOT SAI_HOST_BUILD)
+    # Minimal POSIX-name shims (unistd.h: ssize_t, getpagesize) for the
+    # freestanding target; clang never includes unistd.h on the host.
+    list(APPEND r -I${SAI_ROOT}/ports/micropython/posix)
+endif()
     if(MSVC)
         # POSIX-name shim headers (unistd.h etc.) from the MicroPython
         # windows port; clang must NOT see these.
@@ -75,7 +80,10 @@ list(APPEND MP_QSTR_SOURCES
 
 set(MP_QSTR_I ${MP_BUILD_DIR}/qstr.i.last)
 
-if(MSVC)
+# The qstr preprocessor must run with the *compiler* frontend, not the
+# generator: MSVC generator + clang cross toolchain still preprocesses with
+# clang -E (cl -E would reject the ARM flags).
+if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     # cl -E cannot emit multiple files to one stdout; wrap it per-file.
     set(MP_PP_COMMAND ${SAI_PYTHON_EXECUTABLE} ${SAI_ROOT}/tools/sai_cl_pp.py
                       ${CMAKE_C_COMPILER})
@@ -119,6 +127,7 @@ add_custom_command(
 )
 add_custom_command(
     OUTPUT ${MP_QSTR_COLLECTED}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${MP_GENHDR_DIR}
     COMMAND ${SAI_PYTHON_EXECUTABLE} ${MP_TOOLS_DIR}/makeqstrdefs.py cat
             qstr _ ${MP_BUILD_DIR}/qstr ${MP_QSTR_COLLECTED}
     DEPENDS ${MP_QSTR_SPLIT_STAMP}
@@ -213,11 +222,24 @@ add_custom_command(
 # Step 5: the library
 # ---------------------------------------------------------------------
 set(MP_CORE_SOURCES ${MP_PY_SOURCES})
+if(NOT SAI_HOST_BUILD)
+    # Freestanding target: drop the assembler/emitter backends for other
+    # ISAs (they include host <stdio.h> and are never selected on ARM).
+    list(FILTER MP_CORE_SOURCES EXCLUDE REGEX
+        "/(asmarm|asmthumb|asmx64|asmx86|asmxtensa|asmrv32|emitnarm|emitnthumb|emitnx64|emitnx86|emitnxtensa|emitnxtensawin|emitnrv32|emitndebug|emitinlinethumb|emitinlinerv32|emitinlinextensa)\\.c$")
+endif()
 # nlr.c + the selected nlr implementation are part of the core; the glob
-# above excludes all nlr*.c so add back the ones we need.
+# above excludes all nlr*.c so add back the ones we need.  Host builds use
+# the setjmp implementation; ARM targets use nlrthumb (MICROPY_NLR_SETJMP=0
+# in the port config for that case).
+if(SAI_HOST_BUILD)
+    set(MP_NLR_IMPL ${MP_DIR}/py/nlrsetjmp.c)
+else()
+    set(MP_NLR_IMPL ${MP_DIR}/py/nlrthumb.c)
+endif()
 list(APPEND MP_CORE_SOURCES
     ${MP_DIR}/py/nlr.c
-    ${MP_DIR}/py/nlrsetjmp.c
+    ${MP_NLR_IMPL}
     ${MP_DIR}/extmod/virtpin.c
     ${MP_PORT_DIR}/sai_mp_port.c
     ${MP_PORT_DIR}/modsai.c
@@ -255,6 +277,12 @@ if(NOT MSVC)
     # Non-MSVC hosts use the sai libc shims; MSVC uses the CRT (same split
     # as the sai core build -- see the root CMakeLists).
     target_include_directories(sai_micropython PRIVATE ${SAI_ROOT}/libc/include)
+endif()
+if(NOT SAI_HOST_BUILD)
+    # Freestanding target: minimal POSIX/assert shims (unistd.h, assert.h,
+    # stdio.h) for the MicroPython core.  PUBLIC so consumers that compile
+    # MP headers (e.g. the script service) inherit them.
+    target_include_directories(sai_micropython PUBLIC ${MP_PORT_DIR}/posix)
 endif()
 target_compile_definitions(sai_micropython PRIVATE _SAI_BUILDING)
 

@@ -13,7 +13,7 @@
 #   cmake --build build-stm32 -j
 # =====================================================================
 cmake_minimum_required(VERSION 3.20)
-project(sai_L99 C)
+project(sai_L99 C ASM)
 
 set(SAI_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -78,9 +78,13 @@ elseif(SAI_ARCH STREQUAL "arm")
     add_compile_options(
         -mcpu=${SAI_CPU} -mthumb -ffreestanding -nostdlib
         -ffunction-sections -fdata-sections
-        -Wall -Wextra -Wno-unused-parameter
     )
-    add_link_options(-nostdlib -Wl,--gc-sections -T ${SAI_ROOT}/boards/${SAI_BOARD}/stm32f407.ld)
+    if(NOT MSVC)
+        # GNU-style warning flags only for GNU-style drivers; when a VS
+        # generator drives the clang cross toolchain these are cl flags.
+        add_compile_options(-Wall -Wextra -Wno-unused-parameter)
+    endif()
+    add_link_options(-nostdlib -Wl,--gc-sections -Wl,-T,${SAI_ROOT}/boards/${SAI_BOARD}/stm32f407.ld)
 else()
     message(FATAL_ERROR "Unsupported SAI_ARCH '${SAI_ARCH}'")
 endif()
@@ -119,6 +123,8 @@ set(SAI_KERNEL_SOURCES
     kernel/log.c
     kernel/device.c
     kernel/init.c
+    kernel/budget.c
+    kernel/trace.c
 )
 
 set(SAI_LIBC_SOURCES libc/printf.c)
@@ -155,6 +161,7 @@ if(SAI_HOST_BUILD)
     target_include_directories(sai PRIVATE arch/host)
 else()
     # arch + board sources for target builds
+    target_include_directories(sai PRIVATE ${SAI_ROOT}/arch/arm/include)
     if(SAI_CPU MATCHES "cortex-m0")
         target_sources(sai PRIVATE
             arch/arm/m0plus/port_m0.c
@@ -266,6 +273,7 @@ else()
             "-Wl,-T,${SAI_ROOT}/boards/${SAI_BOARD}/stm32f407.ld"
             "-Wl,-Map,${CMAKE_CURRENT_BINARY_DIR}/${fw}.map")
         add_custom_command(TARGET ${fw} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/bin
             COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${fw}>
                     ${CMAKE_CURRENT_BINARY_DIR}/bin/${fw}.bin
             COMMAND ${CMAKE_OBJCOPY} -O ihex $<TARGET_FILE:${fw}>

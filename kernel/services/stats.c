@@ -7,6 +7,7 @@
 #include <sai/console.h>
 #include <sai/device.h>
 #include <sai/time.h>
+#include <sai/budget.h>
 
 void sai_stats_get(sai_stats_snapshot_t *out)
 {
@@ -27,6 +28,7 @@ void sai_stats_get(sai_stats_snapshot_t *out)
     out->heap_max_free = sai_mem_max_free_block();
     out->scripts_run   = sai_script_runs();
     out->script_errors = sai_script_errors();
+    out->budget_violations = sai_budget_violations_total();
 }
 
 void sai_stats_print(const sai_stats_snapshot_t *s)

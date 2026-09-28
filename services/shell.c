@@ -13,7 +13,6 @@
 #include <sai/devices2.h>
 #include <sai/log.h>
 #include <string.h>
-#include <stdlib.h>
 
 #define SH_LINE_MAX 192
 
@@ -54,6 +53,31 @@ static int split_argv(char *line, char **argv, int max_argv)
         }
     }
     return argc;
+}
+
+/** Freestanding-safe number parser: 0x hex or decimal. */
+static uint32_t sh_atou(const char *s)
+{
+    uint32_t v = 0;
+    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+        s += 2;
+        while (*s != '\0') {
+            char c = *s;
+            uint32_t d;
+            if (c >= '0' && c <= '9')      d = (uint32_t)(c - '0');
+            else if (c >= 'a' && c <= 'f') d = (uint32_t)(c - 'a' + 10);
+            else if (c >= 'A' && c <= 'F') d = (uint32_t)(c - 'A' + 10);
+            else break;
+            v = v * 16u + d;
+            s++;
+        }
+    } else {
+        while (*s >= '0' && *s <= '9') {
+            v = v * 10u + (uint32_t)(*s - '0');
+            s++;
+        }
+    }
+    return v;
 }
 
 /* ------------------------------------------------------------------ */
@@ -98,7 +122,7 @@ static void cmd_ev(int argc, char **argv)
         sh_puts("usage: ev <name> <flags> [wait]\r\n");
         return;
     }
-    uint32_t flags = (argc > 2) ? (uint32_t)strtoul(argv[2], NULL, 0) : 0x1u;
+    uint32_t flags = (argc > 2) ? sh_atou(argv[2]) : 0x1u;
     if (argc > 3) {
         uint32_t got = 0;
         sai_status_t rc = sai_events_wait(argv[1], flags,
@@ -131,8 +155,8 @@ static void cmd_rpc(int argc, char **argv)
     }
     int32_t ret = 0;
     sai_status_t rc = sai_softrpc_call(argv[1],
-                                       (argc > 2) ? (uint32_t)strtoul(argv[2], NULL, 0) : 0u,
-                                       (argc > 3) ? (uint32_t)strtoul(argv[3], NULL, 0) : 0u,
+                                       (argc > 2) ? sh_atou(argv[2]) : 0u,
+                                       (argc > 3) ? sh_atou(argv[3]) : 0u,
                                        &ret);
     sai_printf("rpc %s rc=%d ret=%ld\r\n", argv[1], (int)rc, (long)ret);
 }

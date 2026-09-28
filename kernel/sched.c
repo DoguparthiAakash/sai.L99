@@ -27,6 +27,8 @@
  *  - Ready-queue mutations happen under port_lock() (interrupts disabled).
  */
 #include "internal.h"
+#include <sai/budget.h>
+#include <sai/trace.h>
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -166,6 +168,9 @@ void _sai_sched_tick(void)
 #if CONFIG_SAI_THREAD_STATS
     cur->ctx_switches++;              /* tick on this thread: stats     */
 #endif
+#if CONFIG_SAI_BUDGET
+    _sai_budget_on_tick(cur);
+#endif
     if (_sai_sched_mode == SAI_SCHED_COOPERATIVE || cur->sched_mode != 0) {
         return;                             /* no preempt in cooperative mode */
     }
@@ -210,6 +215,7 @@ sai_thread_t *_sai_schedule_pick(void)
 {
     sai_thread_t *cur = _sai_current;
     sai_thread_t *best = _sai_ready_head();
+    sai_thread_t *from = cur;           /* for the trace event */
 
     bool switch_needed;
     if (best == NULL) {
@@ -263,6 +269,17 @@ sai_thread_t *_sai_schedule_pick(void)
 #if CONFIG_SAI_THREAD_STATS
     best->ctx_switches++;
     best->last_ran_tick = sai_tick_count();
+#endif
+#if CONFIG_SAI_BUDGET
+    if (from != NULL) {
+        _sai_budget_on_switch_out(from);
+    }
+    best->budget_run_start = sai_tick_count();
+#endif
+#if CONFIG_SAI_TRACE
+    _sai_trace_event((uint8_t)SAI_TRACE_SWITCH,
+                     (uint32_t)(uintptr_t)best,
+                     (uint32_t)(uintptr_t)from, 0u);
 #endif
     return best;
 }
@@ -373,6 +390,7 @@ void sai_kernel_start(sai_main_fn_t main_fn)
     memset(&_sai_main_thread, 0, sizeof(_sai_main_thread));
     _sai_main_thread.kobj.type = SAI_KOBJ_THREAD;
     _sai_main_thread.kobj.name = "main";
+    _sai_kobj_register_full(&_sai_main_thread.kobj, SAI_KOBJ_THREAD, "main");
     _sai_main_thread.entry      = main_thread_entry;
     _sai_main_thread.arg        = (void *)(uintptr_t)main_fn;
     _sai_main_thread.prio       = 1;
@@ -398,6 +416,7 @@ void sai_kernel_start(sai_main_fn_t main_fn)
     memset(&_sai_idle_thread, 0, sizeof(_sai_idle_thread));
     _sai_idle_thread.kobj.type = SAI_KOBJ_THREAD;
     _sai_idle_thread.kobj.name = "idle";
+    _sai_kobj_register_full(&_sai_idle_thread.kobj, SAI_KOBJ_THREAD, "idle");
     _sai_idle_thread.entry    = idle_thread;
     _sai_idle_thread.arg      = NULL;
     _sai_idle_thread.prio     = SAI_IDLE_PRIORITY;

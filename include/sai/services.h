@@ -193,6 +193,7 @@ typedef struct {
     uint32_t heap_max_free;     /**< Largest contiguous free block        */
     uint32_t scripts_run;       /**< Script service: completed runs       */
     uint32_t script_errors;     /**< Script service: failed runs          */
+    uint32_t budget_violations; /**< Budget enforcer: overruns (all tids) */
 } sai_stats_snapshot_t;
 
 /** Fill @p out with a coherent diagnostics snapshot (any thread). */

@@ -110,6 +110,19 @@ static void scriptd_loop(sai_service_t *svc)
 /* Public API                                                          */
 /* ------------------------------------------------------------------ */
 
+/* One-shot backend registration (MP + native c/cpp/asm/rust).  Called
+ * lazily from the script entry points; never re-registers. */
+static void sai_script_init_backends(void)
+{
+    static bool s_langs_ready;
+    if (s_langs_ready) {
+        return;
+    }
+    s_langs_ready = true;
+    extern void sai_script_service_mp_init(void);
+    sai_script_service_mp_init();       /* registers MP + native backends */
+}
+
 sai_status_t sai_script_run(sai_lang_t lang, const char *src, size_t len,
                             sai_script_result_t *result, uint32_t timeout_ms)
 {
@@ -117,6 +130,7 @@ sai_status_t sai_script_run(sai_lang_t lang, const char *src, size_t len,
         (result != NULL && timeout_ms != 0u)) {
         return SAI_ERR_INVAL;
     }
+    sai_script_init_backends();
     sai_lang_backend_t *be = sai_lang_get(lang);
     if (be == NULL) {
         return SAI_ERR_NOENT;
@@ -164,6 +178,7 @@ sai_status_t sai_script_run_async(sai_lang_t lang, const char *src, size_t len)
         lang >= SAI_LANG_COUNT) {
         return SAI_ERR_INVAL;
     }
+    sai_script_init_backends();
     if (s_scriptd == NULL) {
         sai_status_t rc = sai_script_service_start();
         if (rc != SAI_OK) {
@@ -216,6 +231,7 @@ uint32_t sai_script_errors(void)
 
 sai_status_t sai_script_service_start(void)
 {
+    sai_script_init_backends();         /* idempotent */
     if (s_scriptd != NULL && !sai_service_is_stopped(s_scriptd)) {
         return SAI_OK;                  /* already running */
     }

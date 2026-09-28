@@ -22,6 +22,7 @@
 #include "sai/time.h"
 #include "sai/console.h"
 #include "sai/ipc.h"
+#include "sai/port.h"
 #include "sai/services.h"
 
 #include "mpconfigport.h"
@@ -48,7 +49,7 @@ void sai_mp_init(void)
 {
     gc_init(mp_heap, mp_heap + MP_HEAP_SIZE);
     mp_init();
-    mp_stack_set_top((void *)&mp_heap);   /* cstack limit set below */
+    mp_stack_ctrl_init();   /* anchor the MP stack top at this frame */
     mp_stack_set_limit(MP_THREAD_STACK);
 }
 
@@ -129,6 +130,11 @@ mp_uint_t mp_hal_stdout_tx_strn(const char *str, size_t len)
 
 void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len)
 {
+    /* Capture mode: chunks go to the sink verbatim (no CRLF translation). */
+    if (s_out_hook != NULL) {
+        sai_mp_out(NULL, str, len);
+        return;
+    }
     /* \n -> \r\n on the wire (console is a raw UART stream) */
     size_t i = 0;
     while (i < len) {
@@ -236,6 +242,39 @@ void __assert_func(const char *file, int line, const char *func, const char *exp
     (void)file; (void)line; (void)func; (void)expr;
     sai_printf("MP assert %s:%d %s %s\n", file, line, func, expr);
     port_halt();
+}
+#endif
+
+/* assert.h shim hook for freestanding targets (see posix/assert.h). */
+#ifndef SAI_HOST_BUILD
+void mp_assert_fail(const char *expr, const char *file, int line)
+{
+    sai_printf("MP assert %s:%d %s\n", file, line, expr);
+    port_halt();
+}
+
+/* stdio.h shim: the MP core's few libc-stdio references route to the
+ * sai console (see posix/stdio.h). */
+int vprintf(const char *fmt, va_list ap)
+{
+    char buf[CONFIG_SAI_CONSOLE_LINE_MAX];
+    sai_vsnprintf(buf, sizeof(buf), fmt, ap);
+    sai_console_write(buf);
+    return 0;
+}
+
+int putchar(int c)
+{
+    char b[2] = { (char)c, 0 };
+    sai_console_write(b);
+    return (unsigned char)c;
+}
+
+int puts(const char *s)
+{
+    sai_console_write(s);
+    sai_console_write("\r\n");
+    return 0;
 }
 #endif
 

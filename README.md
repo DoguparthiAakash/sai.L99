@@ -28,20 +28,34 @@ portable kernel core and the architecture/board layers.
 - **HAL + ports**: everything arch-specific lives in `arch/<name>/` behind a small contract
   (`port.h`): context switch, critical sections, tick setup, stack init, idle hook. The kernel core
   never touches hardware registers.
+- **Services** (`sai_services`): a named **service framework** (threads with message-queue
+  inboxes + a stop protocol) hosting:
+  - **script service** — runs payloads in **MicroPython** (vendored v1.25 VM, 48 KB target heap),
+    **C**, **C++**, **assembly** and **Rust** (host toolchain compile+run; pre-baked snippets on
+    target), with stdout capture and sync/async execution (`sai_script_run*`),
+  - **stats service** — coherent kernel snapshot (`sai_stats_get`) + periodic heartbeat daemon,
+  - **events service** — named pub/sub channels over event flags (`sai_events_publish/wait`),
+  - **softrpc** — name → handler dispatch registry (`sai_softrpc_register/call`),
+  - **shell** — console service (`run/exec/mp/ps/stats/dev/ev/rpc/kill` commands).
+- **Devices, second wave**: software **PWM** (kernel-timer engine), debounced IRQ **buttons**
+  with press/release callbacks, **loopback** endpoint pairs (IPC/test plumbing), and **memory**
+  devices (named scratch buffers) — all registered in the standard device enumerator.
 - **Driver framework**: refcounted `sai_device` nodes bound from a static **devicetree** blob,
   with UART/GPIO/SPI/I2C/timer APIs. A board = a tree fragment + config; adding a board never
   touches the kernel.
 - **Config**: CMake build with a Kconfig-style declarative config (`saiconfig` text file) that
   gates features at compile time (`CONFIG_*` macros in `sai_config.h`).
-- **Tests**: a host test framework (`tests/framework.h`) with 8 suites / 28 test cases covering
-  kernel lifecycle, scheduler, sync, IPC, memory, libc, ISR signaling, and an end-to-end
-  integration test. Kernel primitives are validated on the native build (Windows/Linux) before
-  hardware.
-- **Samples**: `samples/blinky` (3 LED tasks + a UART shell thread with kernel stats) and
+- **Tests**: a host test framework (`tests/framework.h`) with 12 suites covering
+  kernel lifecycle, scheduler, sync, IPC, memory, libc, ISR signaling, end-to-end integration,
+  **MicroPython execution**, the **script service**, **services** (framework/events/rpc/stats)
+  and the **second-wave devices**. Kernel primitives are validated on the native build
+  (Windows/Linux) before hardware.
+- **Samples**: `samples/blinky` (3 LED tasks + a UART shell thread with kernel stats),
   `samples/kernel_demo` (9 threads, deferred-ISR work, queues/mailboxes/pipes/event flags/
-  mutexes/semaphores/condvars, heap/pool/slab, tickless idle). The demo prints a full report
-  (context switches, ISR reschedules, heap fragmentation) to the console — this is the primary
-  proof artifact.
+  mutexes/semaphores/condvars, heap/pool/slab, tickless idle) and `samples/lang_demo`
+  (MicroPython + C + Rust payloads, events pub/sub, softrpc, then an interactive shell).
+  The demo prints a full report (context switches, ISR reschedules, heap fragmentation) to the
+  console — this is the primary proof artifact.
 
 ## Source tree
 
@@ -57,8 +71,11 @@ sai.L99/
 │       └── m7/        v7-M with D-cache maintenance + MPU linker section support
 ├── boards/            Board support packages (dts fragments, pinmux, config overlays)
 │   └── stm32f407g-disc1
-├── drivers/           Driver framework + serial/gpio/spi/i2c/timer class implementations
-├── include/sai/       Public API (types, kernel, time, sync, ipc, mem, log, device, port.h)
+├── drivers/           Driver framework + serial/gpio/spi/i2c/timer/pwm/button/virtual classes
+├── lang/              Language backends for the script service (MicroPython + native)
+├── services/          Shell service
+├── kernel/services/   Service framework, script/stats/events/softrpc services
+├── include/sai/       Public API (types, kernel, time, sync, ipc, mem, log, device, services, port.h)
 └── docs/              Architecture documentation
 ```
 
@@ -77,11 +94,15 @@ Requirements: CMake ≥ 3.20, a C11 toolchain.
 ```sh
 cmake -S . -B build
 cmake --build build --config Release -j
-ctest --test-dir build -C Release --output-on-failure   # 8 suites, 28 cases
+ctest --test-dir build -C Release --output-on-failure   # 12 suites
 ```
 
 On Windows the Visual Studio generator is used; test binaries land in `build\Release\` and the
-demo/blinky samples in `build\bin\Release\`.
+samples in `build\bin\Release\`. Run the multi-language demo (MicroPython + C + Rust + shell):
+
+```sh
+.\build\bin\Release\lang_demo.exe
+```
 
 The demo runs 9 kernel threads (each with its own host thread), all IPC primitives, memory
 pools/slab/heap, a tick thread, and tickless idle — and prints a periodic report. Run it for a few
